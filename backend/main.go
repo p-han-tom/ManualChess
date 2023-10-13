@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"manual-chess/handlers"
+	"manual-chess/services"
 	"manual-chess/utils"
 
 	"github.com/gin-gonic/gin"
@@ -17,10 +18,13 @@ func main() {
 		panic(err)
 	}
 
-	utils.InitRedis();
+	utils.InitRedis()
+	go services.InitMatchMaker()
 
 	router := gin.Default()
 	router.POST("/findMatch", handlers.FindMatch)
+	router.POST("/login", handlers.Login)
 	router.DELETE("/cancelMatch", handlers.CancelMatch)
+	router.DELETE("/logout", handlers.Logout)
 	router.Run("localhost:8080")
 }
