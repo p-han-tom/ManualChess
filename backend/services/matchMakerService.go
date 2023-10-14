@@ -19,61 +19,68 @@ type queueMember struct {
 	Cancelled bool
 }
 
-var queue []queueMember
+type MatchMakingService struct {
+	RedisClient *redis.Client
+	queue       []queueMember
+}
 
-func InitMatchMaker() {
+func (m *MatchMakingService) RunMatchMaker() {
 	for {
 
 		// Make matches
-		for i := 0; i < len(queue); i++ {
+		for i := 0; i < len(m.queue); i++ {
 			fmt.Println("Running match making coordinator.")
 
 			// Get user data from redis map
-			userData, _ := utils.GetAndUnmarshal[models.User](queue[i].ID)
+			userData, _ := utils.GetAndUnmarshal[models.User](m.RedisClient, m.queue[i].ID)
 			if userData.State != models.InQueue {
-				queue[i].Cancelled = true
+				m.queue[i].Cancelled = true
 				continue
 			}
 
 			// Find suitable matches for user in redis sorted set
 			eloMin := strconv.Itoa(userData.MMR - 50)
 			eloMax := strconv.Itoa(userData.MMR + 50)
-			potentialOpps, _ := utils.RedisClient.ZRangeByScoreWithScores(context.Background(), "mmList", &redis.ZRangeBy{Min: eloMin, Max: eloMax}).Result()
+			potentialOpps, _ := m.RedisClient.ZRangeByScoreWithScores(context.Background(), "mmList", &redis.ZRangeBy{Min: eloMin, Max: eloMax}).Result()
 
 			// Find best match
 			bestMatchDiff := math.Inf(1)
 			var oppId string
 			for j := 0; j < len(potentialOpps); j++ {
-				if potentialOpps[j].Member != queue[i].ID && math.Abs(potentialOpps[j].Score-float64(userData.MMR)) < bestMatchDiff {
+				if potentialOpps[j].Member != m.queue[i].ID && math.Abs(potentialOpps[j].Score-float64(userData.MMR)) < bestMatchDiff {
 					oppId = potentialOpps[j].Member.(string)
 				}
 			}
 
 			if oppId != "" {
-				fmt.Printf("Found match between %s and %s\n", oppId, queue[i].ID)
+				fmt.Printf("Found match between %s and %s\n", oppId, m.queue[i].ID)
 				// Mark in queue that opp and userId are in match
-				queue[i].Cancelled = true
+				m.queue[i].Cancelled = true
 
 				// Set user and opponent status to in match
-				oppData, _ := utils.GetAndUnmarshal[models.User](oppId)
+				oppData, _ := utils.GetAndUnmarshal[models.User](m.RedisClient, oppId)
 				oppData.State = models.InGame
 				userData.State = models.InGame
-				utils.MarshalAndSet[models.User](oppId, oppData)
-				utils.MarshalAndSet[models.User](queue[i].ID, userData)
+				utils.MarshalAndSet[models.User](m.RedisClient, oppId, oppData)
+				utils.MarshalAndSet[models.User](m.RedisClient, m.queue[i].ID, userData)
 
 				// Delete user and opponent from sorted set
-				utils.RedisClient.ZRem(context.Background(), "mmList", oppId, queue[i].ID)
+				m.RedisClient.ZRem(context.Background(), "mmList", oppId, m.queue[i].ID)
+
+				// Create new match
+				// matchId := uuid.New()
+
 			}
 		}
 
 		// Clean up queue
 		var tempQueue []queueMember
-		for _, member := range queue {
+		for _, member := range m.queue {
 			if member.Cancelled == false {
 				tempQueue = append(tempQueue, member)
 			}
 		}
-		queue = tempQueue
+		m.queue = tempQueue
 
 		// Potential optimization: increase time between match maker runs when
 		//    no matches found or no users are in the queue
@@ -81,22 +88,22 @@ func InitMatchMaker() {
 	}
 }
 
-func AddToMatchMakingQueue(id string) {
+func (m *MatchMakingService) AddToMatchMakingQueue(id string) {
 	// Mark player as finding match in redis
-	user, _ := utils.GetAndUnmarshal[models.User](id)
+	user, _ := utils.GetAndUnmarshal[models.User](m.RedisClient, id)
 	user.State = models.InQueue
-	utils.MarshalAndSet[models.User](id, user)
+	utils.MarshalAndSet[models.User](m.RedisClient, id, user)
 
 	// Add player to redis sorted set and matchmaking queue
-	utils.RedisClient.ZAdd(context.Background(), "mmList", redis.Z{Score: float64(user.MMR), Member: id})
-	queue = append(queue, queueMember{user.ID, false})
+	m.RedisClient.ZAdd(context.Background(), "mmList", redis.Z{Score: float64(user.MMR), Member: id})
+	m.queue = append(m.queue, queueMember{user.ID, false})
 }
 
-func RemoveFromMatchMakingQueue(id string) {
+func (m *MatchMakingService) RemoveFromMatchMakingQueue(id string) {
 	// Remove player from redis sorted set and mark the player as In Lobby
-	utils.RedisClient.ZRem(context.Background(), "mmList", id)
-	user, _ := utils.GetAndUnmarshal[models.User](id)
+	m.RedisClient.ZRem(context.Background(), "mmList", id)
+	user, _ := utils.GetAndUnmarshal[models.User](m.RedisClient, id)
 
 	user.State = models.InLobby
-	utils.MarshalAndSet[models.User](id, user)
+	utils.MarshalAndSet[models.User](m.RedisClient, id, user)
 }

@@ -1,21 +1,27 @@
-package handlers
+package controllers
 
 import (
-	"context"
 	"encoding/json"
-	"manual-chess/models"
-	"manual-chess/utils"
+	. "manual-chess/models"
+	"manual-chess/services"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
+type AuthController struct {
+	AuthService *services.AuthService
+}
+
 // Later we need to actually implement auth logic, not sure how that will work
 // For now login and logout just creates and destroys a user in Redis
 
 // POST request to login
-func Login(c *gin.Context) {
-	var user models.User
+func (a *AuthController) Login(c *gin.Context) {
+
+	// TODO: Technically should just be receiving an AuthRequestDto
+	// Since we don't have a persistent db set up, we just take a whole user object
+	var user User
 
 	// Bind the JSON data from the request body to the User struct
 	if err := c.BindJSON(&user); err != nil {
@@ -28,12 +34,13 @@ func Login(c *gin.Context) {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	utils.RedisClient.Set(context.Background(), user.ID, val, 0)
+
+	a.AuthService.Login(user.ID, val)
 }
 
 // DELETE request to logout
-func Logout(c *gin.Context) {
-	var user models.User
+func (a *AuthController) Logout(c *gin.Context) {
+	var user User
 
 	// Bind the JSON data from the request body to the User struct
 	if err := c.BindJSON(&user); err != nil {
@@ -41,5 +48,5 @@ func Logout(c *gin.Context) {
 		return
 	}
 
-	utils.RedisClient.Del(context.Background(), user.ID)
+	a.AuthService.Logout(user.ID)
 }

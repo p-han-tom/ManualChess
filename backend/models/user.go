@@ -1,5 +1,7 @@
 package models
 
+// Down the line need to add units to the User struct
+// For now we hard code the units that a User spawns in the matchMakingService
 type UserState int
 
 const (
