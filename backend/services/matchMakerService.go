@@ -7,6 +7,7 @@ import (
 	"manual-chess/utils"
 	"math"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -15,95 +16,113 @@ import (
 // Need to implement some form of websocket communication
 
 type queueMember struct {
-	ID        string
-	Cancelled bool
+	id        string
+	cancelled bool
+	weight    int
 }
 
 type MatchMakingService struct {
 	RedisClient *redis.Client
 	queue       []queueMember
+	mmu         sync.Mutex
+	amu         sync.Mutex
 }
 
+// Two pass polling approach
+//   - First pass matches players and marks players who have found a match
+//   - Second pass deletes matched players from the queue
 func (m *MatchMakingService) RunMatchMaker() {
+
 	for {
-
-		// Make matches
+		m.amu.Lock()
+		fmt.Println("Running match making coordinator.")
 		for i := 0; i < len(m.queue); i++ {
-			fmt.Println("Running match making coordinator.")
-
+			m.mmu.Lock()
 			// Get user data from redis map
-			userData, _ := utils.GetAndUnmarshal[models.User](m.RedisClient, m.queue[i].ID)
+			userData, _ := utils.GetAndUnmarshal[models.User](m.RedisClient, m.queue[i].id)
 			if userData.State != models.InQueue {
-				m.queue[i].Cancelled = true
+				// mark for deletion
+				m.queue[i].cancelled = true
+				m.mmu.Unlock()
 				continue
 			}
 
-			// Find suitable matches for user in redis sorted set
-			eloMin := strconv.Itoa(userData.MMR - 50)
-			eloMax := strconv.Itoa(userData.MMR + 50)
+			// Find best match for current player
+			if m.queue[i].weight < 5 {
+				m.queue[i].weight++
+			}
+			eloMin := strconv.Itoa(userData.MMR - 20*m.queue[i].weight)
+			eloMax := strconv.Itoa(userData.MMR + 20*m.queue[i].weight)
 			potentialOpps, _ := m.RedisClient.ZRangeByScoreWithScores(context.Background(), "mmList", &redis.ZRangeBy{Min: eloMin, Max: eloMax}).Result()
-
-			// Find best match
 			bestMatchDiff := math.Inf(1)
 			var oppId string
 			for j := 0; j < len(potentialOpps); j++ {
-				if potentialOpps[j].Member != m.queue[i].ID && math.Abs(potentialOpps[j].Score-float64(userData.MMR)) < bestMatchDiff {
-					oppId = potentialOpps[j].Member.(string)
+				mmrDiff := math.Abs(potentialOpps[j].Score - float64(userData.MMR))
+				if potentialOpps[j].Member != m.queue[i].id && mmrDiff < bestMatchDiff {
+					bestMatchDiff, oppId = mmrDiff, potentialOpps[j].Member.(string)
 				}
 			}
 
-			if oppId != "" {
-				fmt.Printf("Found match between %s and %s\n", oppId, m.queue[i].ID)
-				// Mark in queue that opp and userId are in match
-				m.queue[i].Cancelled = true
+			if bestMatchDiff < math.Inf(1) {
+				fmt.Printf("Found match between %s and %s\n", oppId, m.queue[i].id)
 
 				// Set user and opponent status to in match
 				oppData, _ := utils.GetAndUnmarshal[models.User](m.RedisClient, oppId)
 				oppData.State = models.InGame
 				userData.State = models.InGame
 				utils.MarshalAndSet[models.User](m.RedisClient, oppId, oppData)
-				utils.MarshalAndSet[models.User](m.RedisClient, m.queue[i].ID, userData)
+				utils.MarshalAndSet[models.User](m.RedisClient, m.queue[i].id, userData)
 
 				// Delete user and opponent from sorted set
-				m.RedisClient.ZRem(context.Background(), "mmList", oppId, m.queue[i].ID)
+				m.RedisClient.ZRem(context.Background(), "mmList", oppId, m.queue[i].id)
 
 				// Create new match
-				// matchId := uuid.New()
-
 			}
+			m.mmu.Unlock()
 		}
-
-		// Clean up queue
-		var tempQueue []queueMember
+		// sweep cancelled requests
+		tempQueue := make([]queueMember, 0, len(m.queue))
 		for _, member := range m.queue {
-			if member.Cancelled == false {
+			if member.cancelled == false {
 				tempQueue = append(tempQueue, member)
 			}
 		}
 		m.queue = tempQueue
+		m.amu.Unlock()
 
 		// Potential optimization: increase time between match maker runs when
 		//    no matches found or no users are in the queue
-		time.Sleep(5 * time.Second)
+		time.Sleep(8 * time.Second)
 	}
 }
 
 func (m *MatchMakingService) AddToMatchMakingQueue(id string) {
 	// Mark player as finding match in redis
+	m.amu.Lock()
+
+	// Attempt to find match
+
+	// Otherwise place user in queue
 	user, _ := utils.GetAndUnmarshal[models.User](m.RedisClient, id)
 	user.State = models.InQueue
 	utils.MarshalAndSet[models.User](m.RedisClient, id, user)
 
 	// Add player to redis sorted set and matchmaking queue
 	m.RedisClient.ZAdd(context.Background(), "mmList", redis.Z{Score: float64(user.MMR), Member: id})
-	m.queue = append(m.queue, queueMember{user.ID, false})
+	m.queue = append(m.queue, queueMember{user.ID, false, 0})
+
+	m.amu.Unlock()
+	fmt.Println("Added user " + id + " to the queue")
 }
 
 func (m *MatchMakingService) RemoveFromMatchMakingQueue(id string) {
 	// Remove player from redis sorted set and mark the player as In Lobby
+	m.mmu.Lock()
+	defer m.mmu.Unlock()
 	m.RedisClient.ZRem(context.Background(), "mmList", id)
 	user, _ := utils.GetAndUnmarshal[models.User](m.RedisClient, id)
 
 	user.State = models.InLobby
 	utils.MarshalAndSet[models.User](m.RedisClient, id, user)
+
 }
