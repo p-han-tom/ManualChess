@@ -1,31 +1,47 @@
 package controllers
 
 import (
+	"fmt"
 	. "manual-chess/dtos/request"
 	"manual-chess/services"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 type MatchMakingController struct {
-	MatchMakingService *services.MatchMakingService
+	matchMakingService *services.MatchMakingService
+	socketService      *services.SocketService
 }
 
-// @POST Add user to redis match making list
-func (m *MatchMakingController) FindMatch(c *gin.Context) {
-	// Add user to redis store of active users looking for match
-	var request MatchMakingRequestDto
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+}
 
+func NewMatchMakingController(m *services.MatchMakingService, s *services.SocketService) *MatchMakingController {
+	return &MatchMakingController{
+		matchMakingService: m,
+		socketService:      s,
+	}
+}
+
+// @POST Add user to redis match making list and establish socket connection
+func (m *MatchMakingController) FindMatch(c *gin.Context) {
 	// Bind the JSON data from the request body to the User struct
-	if err := c.BindJSON(&request); err != nil {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	id := c.Param("id")
+
+	// Upgrade connection
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		fmt.Println(err.Error())
 		return
 	}
 
-	m.MatchMakingService.AddToMatchMakingQueue(request.ID)
+	m.socketService.SetConnection(id, conn)
 
-	c.IndentedJSON(http.StatusCreated, request)
+	m.matchMakingService.AddToMatchMakingQueue(id)
 }
 
 // @DELETE Remove user from redis match making list
@@ -37,7 +53,9 @@ func (m *MatchMakingController) CancelMatch(c *gin.Context) {
 		return
 	}
 
-	m.MatchMakingService.RemoveFromMatchMakingQueue(request.ID)
+	m.socketService.RemoveConnection(request.ID)
+
+	m.matchMakingService.RemoveFromMatchMakingQueue(request.ID)
 
 	c.IndentedJSON(http.StatusOK, request)
 }

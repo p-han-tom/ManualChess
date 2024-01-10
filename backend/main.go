@@ -35,27 +35,21 @@ func main() {
 	// Inject map of socket connections as needed per service or controller
 
 	// Set up services
-	matchMakingService := services.MatchMakingService{
-		RedisClient: redisClient,
-	}
-
-	authService := services.AuthService{
-		RedisClient: redisClient,
-	}
+	socketService := services.NewSocketService()
+	matchMakingService := services.NewMatchMakingService(socketService, redisClient)
+	authService := services.NewAuthService(redisClient)
 
 	// Set up controllers
-	matchMakingController := controllers.MatchMakingController{
-		MatchMakingService: &matchMakingService,
-	}
+	matchMakingController := controllers.NewMatchMakingController(matchMakingService, socketService)
 
 	authController := controllers.AuthController{
-		AuthService: &authService,
+		AuthService: authService,
 	}
 
 	go matchMakingService.RunMatchMaker()
 
 	router := gin.Default()
-	router.POST("/findMatch", matchMakingController.FindMatch)
+	router.GET("/ws/findMatch/:id", matchMakingController.FindMatch)
 	router.POST("/login", authController.Login)
 	router.DELETE("/cancelMatch", matchMakingController.CancelMatch)
 	router.DELETE("/logout", authController.Logout)

@@ -36,6 +36,7 @@ func (a *AuthController) Login(c *gin.Context) {
 	}
 
 	a.AuthService.Login(user.ID, val)
+	c.IndentedJSON(http.StatusCreated, "")
 }
 
 // DELETE request to logout
@@ -49,4 +50,5 @@ func (a *AuthController) Logout(c *gin.Context) {
 	}
 
 	a.AuthService.Logout(user.ID)
+	c.IndentedJSON(http.StatusAccepted, "")
 }
