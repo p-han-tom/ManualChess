@@ -1,17 +1,13 @@
 package services
 
 import (
-	"context"
 	"fmt"
-	"manual-chess/models"
-	"manual-chess/utils"
+	"manual-chess/constants"
+	matchmakingRepository "manual-chess/repository/matchmaking"
+	playerRepository "manual-chess/repository/player"
 	"math"
-	"strconv"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 )
 
 // Need to implement some form of websocket comunication
@@ -23,15 +19,21 @@ type queueMember struct {
 }
 
 type MatchMakingService struct {
-	RedisClient   *redis.Client
+	playerRepo    playerRepository.PlayerRepository
+	mmRepo        matchmakingRepository.MatchMakingRepository
 	socketService *SocketService
 	queue         []queueMember
 	mu            sync.Mutex
 }
 
-func NewMatchMakingService(s *SocketService, r *redis.Client) *MatchMakingService {
+func NewMatchMakingService(
+	s *SocketService,
+	p playerRepository.PlayerRepository,
+	m matchmakingRepository.MatchMakingRepository,
+) *MatchMakingService {
 	return &MatchMakingService{
-		RedisClient:   r,
+		playerRepo:    p,
+		mmRepo:        m,
 		socketService: s,
 	}
 }
@@ -46,8 +48,8 @@ func (m *MatchMakingService) RunMatchMaker() {
 		for i := 0; i < len(m.queue); i++ {
 			m.mu.Lock()
 			// Get user data from redis map
-			userData, _ := utils.GetAndUnmarshal[models.User](m.RedisClient, m.queue[i].id)
-			if userData.State != models.InQueue {
+			userData, _ := m.playerRepo.GetPlayerById(m.queue[i].id)
+			if userData.State != constants.InQueue {
 				// mark for deletion
 				m.queue[i].cancelled = true
 				m.mu.Unlock()
@@ -58,9 +60,9 @@ func (m *MatchMakingService) RunMatchMaker() {
 			if m.queue[i].weight < 5 {
 				m.queue[i].weight++
 			}
-			eloMin := strconv.Itoa(userData.MMR - 20*m.queue[i].weight)
-			eloMax := strconv.Itoa(userData.MMR + 20*m.queue[i].weight)
-			potentialOpps, _ := m.RedisClient.ZRangeByScoreWithScores(context.Background(), "mmList", &redis.ZRangeBy{Min: eloMin, Max: eloMax}).Result()
+			eloMin := userData.MMR - 20*m.queue[i].weight
+			eloMax := userData.MMR + 20*m.queue[i].weight
+			potentialOpps, _ := m.mmRepo.GetPlayersByEloRange(eloMin, eloMax)
 			bestMatchDiff := math.Inf(1)
 			var oppId string
 			for j := 0; j < len(potentialOpps); j++ {
@@ -74,19 +76,37 @@ func (m *MatchMakingService) RunMatchMaker() {
 				fmt.Printf("Found match between %s and %s\n", oppId, m.queue[i].id)
 
 				// Set user and opponent status to in match
-				oppData, _ := utils.GetAndUnmarshal[models.User](m.RedisClient, oppId)
-				oppData.State = models.InGame
-				userData.State = models.InGame
-				utils.MarshalAndSet[models.User](m.RedisClient, oppId, oppData)
-				utils.MarshalAndSet[models.User](m.RedisClient, m.queue[i].id, userData)
+				oppData, _ := m.playerRepo.GetPlayerById(oppId)
+				oppData.State = constants.InGame
+				userData.State = constants.InGame
+				m.playerRepo.SetPlayerById(oppId, oppData)
+				m.playerRepo.SetPlayerById(m.queue[i].id, userData)
 
 				// Delete user and opponent from sorted set
-				m.RedisClient.ZRem(context.Background(), "mmList", oppId, m.queue[i].id)
+				m.mmRepo.RemovePlayer(m.queue[i].id)
 
 				// Create new match
-				matchId := uuid.New()
-				m.socketService.GetConnection(m.queue[i].id).WriteJSON(map[string]interface{}{"matchId": matchId})
-				m.socketService.GetConnection(oppId).WriteJSON(map[string]interface{}{"matchId": matchId})
+				// r := rand.New(rand.NewSource(time.Now().Unix()))
+				// randomNumber := r.Float64()
+				// actionFirst := ""
+				// if randomNumber < 0.5 {
+				// 	actionFirst = oppId
+				// } else {
+				// 	actionFirst = m.queue[i].id
+				// }
+
+				// matchId := uuid.New()
+				// match := models.Match{
+				// 	ID:      matchId.String(),
+				// 	State:   constants.Select,
+				// 	Player1: m.queue[i].id,
+				// 	Player2: oppId,
+				// 	Action:  actionFirst,
+				// }
+
+				// utils.MarshalAndSet[models.Match](m.redisClient, matchId.String(), &match)
+				// m.socketService.GetConnection(m.queue[i].id).WriteJSON(map[string]interface{}{"matchId": matchId})
+				// m.socketService.GetConnection(oppId).WriteJSON(map[string]interface{}{"matchId": matchId})
 			}
 			m.mu.Unlock()
 		}
@@ -108,19 +128,18 @@ func (m *MatchMakingService) RunMatchMaker() {
 func (m *MatchMakingService) AddToMatchMakingQueue(id string) {
 	// Mark player as finding match in redis
 	m.mu.Lock()
-
+	defer m.mu.Unlock()
 	// Attempt to find match (TODO)
 
 	// Otherwise place user in queue
-	user, _ := utils.GetAndUnmarshal[models.User](m.RedisClient, id)
-	user.State = models.InQueue
-	utils.MarshalAndSet[models.User](m.RedisClient, id, user)
+	user, _ := m.playerRepo.GetPlayerById(id)
+	user.State = constants.InQueue
+	m.playerRepo.SetPlayerById(id, user)
 
 	// Add player to redis sorted set and matchmaking queue
-	m.RedisClient.ZAdd(context.Background(), "mmList", redis.Z{Score: float64(user.MMR), Member: id})
+	m.mmRepo.AddPlayer(id, user.MMR)
 	m.queue = append(m.queue, queueMember{user.ID, false, 0})
 
-	m.mu.Unlock()
 	fmt.Println("Added user " + id + " to the queue")
 }
 
@@ -128,10 +147,9 @@ func (m *MatchMakingService) RemoveFromMatchMakingQueue(id string) {
 	// Remove player from redis sorted set and mark the player as In Lobby
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.RedisClient.ZRem(context.Background(), "mmList", id)
-	user, _ := utils.GetAndUnmarshal[models.User](m.RedisClient, id)
+	m.mmRepo.RemovePlayer(id)
 
-	user.State = models.InLobby
-	utils.MarshalAndSet[models.User](m.RedisClient, id, user)
-
+	user, _ := m.playerRepo.GetPlayerById(id)
+	user.State = constants.InLobby
+	m.playerRepo.SetPlayerById(id, user)
 }

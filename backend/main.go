@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"manual-chess/controllers"
+	matchmakingRepository "manual-chess/repository/matchmaking"
+	playerRepository "manual-chess/repository/player"
 	"manual-chess/services"
 
 	"github.com/gin-gonic/gin"
@@ -34,9 +36,13 @@ func main() {
 	// Idea: make map of socket connections (gorilla websockets)
 	// Inject map of socket connections as needed per service or controller
 
+	// Set up repositories
+	inMemPlayerRepo := playerRepository.NewInMemPlayerRepository()
+	inMemMMRepo := matchmakingRepository.NewInMemMatchmakingRepository()
+
 	// Set up services
 	socketService := services.NewSocketService()
-	matchMakingService := services.NewMatchMakingService(socketService, redisClient)
+	matchMakingService := services.NewMatchMakingService(socketService, inMemPlayerRepo, inMemMMRepo)
 	authService := services.NewAuthService(redisClient)
 
 	// Set up controllers
