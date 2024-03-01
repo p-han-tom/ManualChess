@@ -2,7 +2,7 @@ package repository
 
 import "manual-chess/models"
 
-type MatchRepository interface {
+type IMatchRepository interface {
 	GetMatch(id string) (*models.Match, error)
-	SetMatch(id string) error
+	SetMatch(id string, match *models.Match) error
 }

@@ -4,7 +4,7 @@ import (
 	"manual-chess/models"
 )
 
-type PlayerRepository interface {
+type IPlayerRepository interface {
 	GetPlayerById(id string) (*models.User, error)
-	SetPlayerById(id string, newPlayer *models.User)
+	SetPlayerById(id string, newPlayer *models.User) error
 }

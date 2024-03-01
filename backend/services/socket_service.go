@@ -22,7 +22,6 @@ func (s *SocketService) SetConnection(playerId string, conn *websocket.Conn) {
 	// s.mu.Lock()
 	// defer s.mu.Unlock()
 	s.connections[playerId] = conn
-	return
 }
 
 // GetConnection retrieves the WebSocket connection associated with a player.

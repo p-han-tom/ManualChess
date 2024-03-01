@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"manual-chess/controllers"
-	matchmakingRepository "manual-chess/repository/matchmaking"
+	matchmaking "manual-chess/infrastructure/matchmaking"
+	matchRepository "manual-chess/repository/match"
 	playerRepository "manual-chess/repository/player"
 	"manual-chess/services"
 
@@ -36,13 +37,18 @@ func main() {
 	// Idea: make map of socket connections (gorilla websockets)
 	// Inject map of socket connections as needed per service or controller
 
+	// Set up infrastructure
+	inMemMMQueue := matchmaking.NewInMemMatchmakingQueue()
+
 	// Set up repositories
-	inMemPlayerRepo := playerRepository.NewInMemPlayerRepository()
-	inMemMMRepo := matchmakingRepository.NewInMemMatchmakingRepository()
+	// inMemPlayerRepo := playerRepository.NewInMemPlayerRepository()
+	redisPlayerRepo := playerRepository.NewRedisPlayerRepository(redisClient)
+	redisMatchRepo := matchRepository.NewRedisMatchRepository(redisClient)
 
 	// Set up services
 	socketService := services.NewSocketService()
-	matchMakingService := services.NewMatchMakingService(socketService, inMemPlayerRepo, inMemMMRepo)
+	gameService := services.NewGameService(socketService, redisMatchRepo)
+	matchMakingService := services.NewMatchMakingService(socketService, gameService, redisPlayerRepo, redisMatchRepo, inMemMMQueue)
 	authService := services.NewAuthService(redisClient)
 
 	// Set up controllers

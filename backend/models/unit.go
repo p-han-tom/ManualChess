@@ -1,4 +1,4 @@
-package unit
+package models
 
 type MovementType int
 

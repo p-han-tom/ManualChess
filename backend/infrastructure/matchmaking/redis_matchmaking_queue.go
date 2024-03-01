@@ -1,4 +1,4 @@
-package repository
+package infrastructure
 
 import (
 	"context"
@@ -7,17 +7,17 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type RedisMatchmakingRepository struct {
+type RedisMatchmakingQueue struct {
 	redisClient *redis.Client
 }
 
-func NewRedisMatchmakingRepository(r *redis.Client) *RedisMatchmakingRepository {
-	return &RedisMatchmakingRepository{
+func NewRedisMatchmakingQueue(r *redis.Client) *RedisMatchmakingQueue {
+	return &RedisMatchmakingQueue{
 		redisClient: r,
 	}
 }
 
-func (r *RedisMatchmakingRepository) GetPlayersByEloRange(eloMin int, eloMax int) ([]redis.Z, error) {
+func (r *RedisMatchmakingQueue) GetPlayersByEloRange(eloMin int, eloMax int) ([]redis.Z, error) {
 	return r.redisClient.ZRangeByScoreWithScores(
 		context.Background(),
 		"mmList",
@@ -25,12 +25,12 @@ func (r *RedisMatchmakingRepository) GetPlayersByEloRange(eloMin int, eloMax int
 
 }
 
-func (r *RedisMatchmakingRepository) AddPlayer(id string, score int) error {
+func (r *RedisMatchmakingQueue) AddPlayer(id string, score int) error {
 	r.redisClient.ZAdd(context.Background(), "mmList", redis.Z{Score: float64(score), Member: id})
 	return nil
 }
 
-func (r *RedisMatchmakingRepository) RemovePlayer(id string) error {
+func (r *RedisMatchmakingQueue) RemovePlayer(id string) error {
 	r.redisClient.ZRem(context.Background(), id)
 	return nil
 }
