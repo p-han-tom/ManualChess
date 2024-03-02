@@ -6,7 +6,7 @@ import (
 	"manual-chess/controllers"
 	matchmaking "manual-chess/infrastructure/matchmaking"
 	matchRepository "manual-chess/repository/match"
-	playerRepository "manual-chess/repository/player"
+	userRepository "manual-chess/repository/user"
 	"manual-chess/services"
 
 	"github.com/gin-gonic/gin"
@@ -42,13 +42,14 @@ func main() {
 
 	// Set up repositories
 	// inMemPlayerRepo := playerRepository.NewInMemPlayerRepository()
-	redisPlayerRepo := playerRepository.NewRedisPlayerRepository(redisClient)
-	redisMatchRepo := matchRepository.NewRedisMatchRepository(redisClient)
+	redisPlayerRepo := userRepository.NewRedisUserRepository(redisClient)
+	// redisMatchRepo := matchRepository.NewRedisMatchRepository(redisClient)
+	inMemMatchRepo := matchRepository.NewInMemMatchRepository()
 
 	// Set up services
 	socketService := services.NewSocketService()
-	gameService := services.NewGameService(socketService, redisMatchRepo)
-	matchMakingService := services.NewMatchMakingService(socketService, gameService, redisPlayerRepo, redisMatchRepo, inMemMMQueue)
+	gameService := services.NewGameService(socketService, inMemMatchRepo)
+	matchMakingService := services.NewMatchMakingService(socketService, gameService, redisPlayerRepo, inMemMatchRepo, inMemMMQueue)
 	authService := services.NewAuthService(redisClient)
 
 	// Set up controllers
