@@ -50,7 +50,7 @@ func NewMatchMakingService(
 func (m *MatchMakingService) RunMatchMaker() {
 
 	for {
-		fmt.Println("Running match making coordinator.")
+		// fmt.Println("Running match making coordinator.")
 		for i := 0; i < len(m.queue); i++ {
 			currId := m.queue[i].id
 

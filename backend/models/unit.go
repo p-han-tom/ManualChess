@@ -9,8 +9,10 @@ type MovementType int
 type AttackType int
 
 type Unit struct {
+	Type      string   `json:"string"`
 	HP        int      `json:"hp"`
 	MoveRange int      `json:"moveRange"`
+	Intiative int      `json:"intiative"`
 	IsAlive   bool     `json:"isAlive"`
 	Traits    []string `json:"traits"`
 }
@@ -19,7 +21,38 @@ var (
 	ThreeCostPool []string = []string{"necromancer", "elder_sage", "reflection", "barbarian", "stranger"}
 	TwoCostPool   []string = []string{"werewolf", "dancer", "sentinel", "demolitionist", "survivor"}
 	OneCostPool   []string = []string{"hedge_knight", "trapper", "rider", "archer", "apprentice"}
+
+	PrimaryAbilityLookupTable map[string]func() = map[string]func(){
+		"necromancer": func() {
+
+		},
+		"sentinel": func() {
+
+		},
+		"hedge_knight": func() {
+
+		},
+	}
+
+	SecondaryAbilityLookupTable map[string]func() = map[string]func(){}
 )
+
+func newUnit(unitType string, hp int, moveRange int, initiative int, traits []string) Unit {
+	return Unit{Type: unitType, HP: hp, MoveRange: moveRange, Intiative: initiative, Traits: traits, IsAlive: true}
+}
+
+func UnitFactory(unitType string) Unit {
+	switch unitType {
+	case "necromancer":
+		return newUnit(unitType, 4, 2, 1, []string{"Undead", "Mage"})
+	case "sentinel":
+		return newUnit(unitType, 5, 2, 0, []string{"Human", "Knight"})
+	case "hedge_knight":
+		return newUnit(unitType, 4, 2, 0, []string{"Human", "Knight"})
+	default:
+		return newUnit(unitType, 4, 2, 0, []string{"Human", "Knight"})
+	}
+}
 
 // Generates unit pools in order of cost
 func GenerateRoster() [][]string {
@@ -29,9 +62,9 @@ func GenerateRoster() [][]string {
 	}
 
 	for i := 0; i < 5; i++ {
-		roster[0] = append(roster[0], OneCostPool[rand.Intn(5)])
-		roster[1] = append(roster[1], TwoCostPool[rand.Intn(5)])
-		roster[2] = append(roster[2], ThreeCostPool[rand.Intn(5)])
+		roster[0] = append(roster[0], OneCostPool[rand.Intn(len(OneCostPool))])
+		roster[1] = append(roster[1], TwoCostPool[rand.Intn(len(TwoCostPool))])
+		roster[2] = append(roster[2], ThreeCostPool[rand.Intn(len(ThreeCostPool))])
 	}
 
 	return roster
