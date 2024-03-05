@@ -2,70 +2,32 @@ package services
 
 import (
 	"fmt"
-	"manual-chess/constants"
 	dtos "manual-chess/dtos/socket"
 	"manual-chess/models"
-	repository "manual-chess/repository/match"
-	"math/rand"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
-type GameService struct {
-	socketService *SocketService
-	matchRepo     repository.IMatchRepository
-}
-
-func NewGameService(socketService *SocketService, matchRepo repository.IMatchRepository) *GameService {
-	return &GameService{
-		socketService: socketService,
-		matchRepo:     matchRepo,
-	}
-}
-
-func (g *GameService) SetupMatch(id1 string, id2 string) {
-
-	// Determine first action
-	randomNumber := rand.Float64()
-	var actionFirst string
-	if randomNumber < 0.5 {
-		actionFirst = id1
-	} else {
-		actionFirst = id2
-	}
-
-	// Generate roster
-	match := models.Match{
-		ID:      uuid.New().String(),
-		State:   constants.Select,
-		Player1: models.Player{ID: id1, Units: make(map[string]models.Unit), Gold: 6},
-		Player2: models.Player{ID: id2, Units: make(map[string]models.Unit), Gold: 6},
-		Action:  actionFirst,
-		Roster:  models.GenerateRoster(),
-	}
-
-	g.matchRepo.SetMatch(match.ID, &match)
-	g.socketService.GetConnection(id1).WriteJSON(map[string]interface{}{"matchId": match.ID})
-	g.socketService.GetConnection(id2).WriteJSON(map[string]interface{}{"matchId": match.ID})
-
-	go g.runPickPhase(match.ID, id1, id2)
-}
-
-func (g *GameService) runPickPhase(matchId string, id1 string, id2 string) {
-	conn1 := g.socketService.GetConnection(id1)
-	conn2 := g.socketService.GetConnection(id2)
-	match, _ := g.matchRepo.GetMatch(matchId)
-	turn := match.Action
-
+func (g *GameService) runPickPhase(matchId string) {
 	match, err := g.matchRepo.GetMatch(matchId)
 	if err != nil {
-		fmt.Println("Shutting down and closing sockets")
-		conn1.Close()
-		conn2.Close()
+		fmt.Println("Match " + matchId + " not found")
 		return
 	}
+
+	id1, id2 := match.Player1.ID, match.Player2.ID
+	turn := match.Action
+	var nextAction string
+	if turn == id1 {
+		nextAction = id2
+	} else {
+		nextAction = id1
+	}
+
+	conn1 := g.socketService.GetConnection(id1)
+	conn2 := g.socketService.GetConnection(id2)
 
 	validate := validator.New()
 
@@ -87,8 +49,9 @@ func (g *GameService) runPickPhase(matchId string, id1 string, id2 string) {
 			player = &match.Player2
 		} else {
 			fmt.Println("Pick phase is over")
+			match.Action = nextAction
 			g.matchRepo.SetMatch(matchId, match)
-			go g.runGamePhase(matchId, id1, id2)
+			go g.runDeployPhase(matchId)
 			break
 		}
 
@@ -133,35 +96,6 @@ func (g *GameService) runPickPhase(matchId string, id1 string, id2 string) {
 			turn = id1
 		}
 	}
-}
-
-func (g *GameService) runGamePhase(matchId string, id1 string, id2 string) {
-
-	conn1 := g.socketService.GetConnection(id1)
-	conn2 := g.socketService.GetConnection(id2)
-	match, err := g.matchRepo.GetMatch(matchId)
-	if err != nil {
-		fmt.Println("Shutting down and closing sockets")
-		conn1.Close()
-		conn2.Close()
-		return
-	}
-
-	// Determine first action
-	randomNumber := rand.Float64()
-	var actionFirst string
-	if randomNumber < 0.5 {
-		actionFirst = id1
-	} else {
-		actionFirst = id2
-	}
-
-	match.Action = actionFirst
-
-	for {
-
-	}
-
 }
 
 func canPlayerPick(roster [][]string, gold int) bool {

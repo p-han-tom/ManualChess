@@ -3,7 +3,8 @@ package controllers
 import (
 	"fmt"
 	. "manual-chess/dtos/request"
-	"manual-chess/services"
+	matchmakingServices "manual-chess/services/matchmaking"
+	socketServices "manual-chess/services/socket"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,8 +12,8 @@ import (
 )
 
 type MatchMakingController struct {
-	matchMakingService *services.MatchMakingService
-	socketService      *services.SocketService
+	matchMakingService *matchmakingServices.MatchMakingService
+	socketService      *socketServices.SocketService
 }
 
 var upgrader = websocket.Upgrader{
@@ -20,7 +21,7 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-func NewMatchMakingController(m *services.MatchMakingService, s *services.SocketService) *MatchMakingController {
+func NewMatchMakingController(m *matchmakingServices.MatchMakingService, s *socketServices.SocketService) *MatchMakingController {
 	return &MatchMakingController{
 		matchMakingService: m,
 		socketService:      s,

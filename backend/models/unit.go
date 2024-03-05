@@ -4,17 +4,16 @@ import (
 	"math/rand"
 )
 
-type MovementType int
-
-type AttackType int
-
 type Unit struct {
-	Type      string   `json:"string"`
-	HP        int      `json:"hp"`
-	MoveRange int      `json:"moveRange"`
-	Intiative int      `json:"intiative"`
-	IsAlive   bool     `json:"isAlive"`
-	Traits    []string `json:"traits"`
+	Type       string   `json:"string"`
+	HP         int      `json:"hp"`
+	MoveRange  int      `json:"moveRange"`
+	Intiative  int      `json:"intiative"`
+	IsAlive    bool     `json:"isAlive"`
+	IsDeployed bool     `json:"isDeployed"`
+	Traits     []string `json:"traits"`
+	Row        int      `json:"row"`
+	Col        int      `json:"col"`
 }
 
 var (

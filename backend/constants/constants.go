@@ -3,7 +3,7 @@ package constants
 type MatchState int
 
 const (
-	Select MatchState = iota
+	Pick MatchState = iota
 	Deploy
 	Play
 )

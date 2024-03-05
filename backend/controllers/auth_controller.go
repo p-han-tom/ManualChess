@@ -3,14 +3,14 @@ package controllers
 import (
 	"encoding/json"
 	. "manual-chess/models"
-	"manual-chess/services"
+	authServices "manual-chess/services/auth"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
 type AuthController struct {
-	AuthService *services.AuthService
+	AuthService *authServices.AuthService
 }
 
 // Later we need to actually implement auth logic, not sure how that will work

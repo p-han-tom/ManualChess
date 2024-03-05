@@ -6,6 +6,8 @@ import (
 	mathcmaking "manual-chess/infrastructure/matchmaking"
 	matchRepository "manual-chess/repository/match"
 	userRepository "manual-chess/repository/user"
+	gameServices "manual-chess/services/game"
+	socketServices "manual-chess/services/socket"
 	"math"
 	"sync"
 	"time"
@@ -23,15 +25,15 @@ type MatchMakingService struct {
 	userRepo      userRepository.IUserRepository
 	matchRepo     matchRepository.IMatchRepository
 	mmQueue       mathcmaking.IMatchMakingQueue
-	socketService *SocketService
-	gameService   *GameService
+	socketService *socketServices.SocketService
+	gameService   *gameServices.GameService
 	queue         []queueMember
 	mu            sync.Mutex
 }
 
 func NewMatchMakingService(
-	socketService *SocketService,
-	gameService *GameService,
+	socketService *socketServices.SocketService,
+	gameService *gameServices.GameService,
 	userRepo userRepository.IUserRepository,
 	matchRepo matchRepository.IMatchRepository,
 	mmQueue mathcmaking.IMatchMakingQueue) *MatchMakingService {
