@@ -1,8 +1,8 @@
-package repository
+package matchrepository
 
-import "manual-chess/models"
+import "manual-chess/models/match"
 
 type IMatchRepository interface {
-	GetMatch(id string) (*models.Match, error)
-	SetMatch(id string, match *models.Match) error
+	GetMatch(id string) (*match.Match, error)
+	SetMatch(id string, match *match.Match) error
 }

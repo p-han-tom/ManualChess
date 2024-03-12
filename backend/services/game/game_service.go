@@ -1,7 +1,7 @@
-package services
+package gameservice
 
 import (
-	"manual-chess/models"
+	"manual-chess/models/match"
 	repository "manual-chess/repository/match"
 	socketServices "manual-chess/services/socket"
 )
@@ -19,7 +19,7 @@ func NewGameService(socketService *socketServices.SocketService, matchRepo repos
 }
 
 func (g *GameService) SetupMatch(id1 string, id2 string) {
-	match := models.NewMatch(id1, id2)
+	match := match.NewMatch(id1, id2)
 
 	g.matchRepo.SetMatch(match.ID, &match)
 	g.socketService.GetConnection(id1).WriteJSON(map[string]interface{}{"matchId": match.ID})

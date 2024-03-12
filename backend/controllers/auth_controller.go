@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
-	. "manual-chess/models"
+	. "manual-chess/models/lobby"
 	authServices "manual-chess/services/auth"
 	"net/http"
 

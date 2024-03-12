@@ -1,21 +1,21 @@
-package repository
+package userrepository
 
 import (
 	"fmt"
-	"manual-chess/models"
+	"manual-chess/models/lobby"
 )
 
 type InMemPlayerRepository struct {
-	players map[string]*models.User
+	players map[string]*lobby.User
 }
 
 func NewInMemPlayerRepository() *InMemPlayerRepository {
 	return &InMemPlayerRepository{
-		players: make(map[string]*models.User),
+		players: make(map[string]*lobby.User),
 	}
 }
 
-func (r *InMemPlayerRepository) GetPlayerById(id string) (*models.User, error) {
+func (r *InMemPlayerRepository) GetPlayerById(id string) (*lobby.User, error) {
 	player, exists := r.players[id]
 	if !exists {
 		return nil, fmt.Errorf("player %s does not exist", id)
@@ -23,6 +23,7 @@ func (r *InMemPlayerRepository) GetPlayerById(id string) (*models.User, error) {
 	return player, nil
 }
 
-func (r *InMemPlayerRepository) SetPlayerById(id string, newPlayer *models.User) {
+func (r *InMemPlayerRepository) SetPlayerById(id string, newPlayer *lobby.User) error {
 	r.players[id] = newPlayer
+	return nil
 }

@@ -1,4 +1,4 @@
-package services
+package gameservice
 
 import "fmt"
 
@@ -17,8 +17,11 @@ func (g *GameService) runGamePhase(matchId string) {
 	turn := match.Action
 	fmt.Println("It's " + turn + "'s turn to move")
 
-	for {
+	conn1.Close()
+	conn2.Close()
 
-	}
+	// for {
+
+	// }
 
 }

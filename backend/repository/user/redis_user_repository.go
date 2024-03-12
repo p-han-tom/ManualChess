@@ -1,7 +1,7 @@
-package repository
+package userrepository
 
 import (
-	"manual-chess/models"
+	"manual-chess/models/lobby"
 	"manual-chess/utils"
 
 	"github.com/redis/go-redis/v9"
@@ -15,10 +15,10 @@ func NewRedisUserRepository(redisClient *redis.Client) *RedisUserRepository {
 	return &RedisUserRepository{redisClient: redisClient}
 }
 
-func (r *RedisUserRepository) GetUserById(id string) (*models.User, error) {
-	return utils.GetAndUnmarshal[models.User](r.redisClient, id)
+func (r *RedisUserRepository) GetUserById(id string) (*lobby.User, error) {
+	return utils.GetAndUnmarshal[lobby.User](r.redisClient, id)
 }
 
-func (r *RedisUserRepository) SetUserById(id string, newUser *models.User) error {
-	return utils.MarshalAndSet[models.User](r.redisClient, id, newUser)
+func (r *RedisUserRepository) SetUserById(id string, newUser *lobby.User) error {
+	return utils.MarshalAndSet[lobby.User](r.redisClient, id, newUser)
 }

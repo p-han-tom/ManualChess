@@ -1,8 +1,8 @@
-package services
+package gameservice
 
 import (
 	"fmt"
-	"manual-chess/models"
+	"manual-chess/models/match"
 	"sync"
 )
 
@@ -24,13 +24,13 @@ func (g *GameService) runDeployPhase(matchId string) {
 	g.runGamePhase(matchId)
 }
 
-func (g *GameService) processDeployForId(wg *sync.WaitGroup, match *models.Match, id string) {
+func (g *GameService) processDeployForId(wg *sync.WaitGroup, game *match.Match, id string) {
 	socket := g.socketService.GetConnection(id)
-	var player *models.Player
-	if match.Player1.ID == id {
-		player = &match.Player1
+	var player *match.Player
+	if game.Player1.ID == id {
+		player = &game.Player1
 	} else {
-		player = &match.Player2
+		player = &game.Player2
 	}
 	side := player.Colour
 	for {
@@ -45,10 +45,10 @@ func (g *GameService) processDeployForId(wg *sync.WaitGroup, match *models.Match
 		row := int(data["row"].(float64))
 		col := int(data["col"].(float64))
 
-		if isValidUnitDeployment(match.Board, side, row, col) {
+		if isValidUnitDeployment(game.Board, side, row, col) {
 			if entry, ok := player.Units[unitId]; ok {
-				entry.Row = row
-				entry.Col = col
+				entry.Pos.Row = row
+				entry.Pos.Col = col
 				entry.IsDeployed = true
 			}
 		}
@@ -72,10 +72,10 @@ func (g *GameService) processDeployForId(wg *sync.WaitGroup, match *models.Match
 	wg.Done()
 }
 
-func isValidUnitDeployment(board [][]models.Tile, side models.PlayerColour, row int, col int) bool {
-	validDeploy := row >= 0 && col >= 0 && row < models.BoardHeight && col < models.BoardWidth &&
-		board[row][col].OccupantId == "" && board[row][col].Passable == true
-	if side == models.PlayerColour(models.Blue) {
+func isValidUnitDeployment(board [][]match.Tile, side match.PlayerColour, row int, col int) bool {
+	validDeploy := row >= 0 && col >= 0 && row < match.BoardHeight && col < match.BoardWidth &&
+		board[row][col].OccupantId == "" && board[row][col].Passable
+	if side == match.PlayerColour(match.Blue) {
 		return validDeploy && row < 3
 	} else {
 		return validDeploy && row >= 5

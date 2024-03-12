@@ -1,9 +1,9 @@
-package services
+package gameservice
 
 import (
 	"fmt"
 	dtos "manual-chess/dtos/socket"
-	"manual-chess/models"
+	"manual-chess/models/match"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -11,14 +11,14 @@ import (
 )
 
 func (g *GameService) runPickPhase(matchId string) {
-	match, err := g.matchRepo.GetMatch(matchId)
+	game, err := g.matchRepo.GetMatch(matchId)
 	if err != nil {
 		fmt.Println("Match " + matchId + " not found")
 		return
 	}
 
-	id1, id2 := match.Player1.ID, match.Player2.ID
-	turn := match.Action
+	id1, id2 := game.Player1.ID, game.Player2.ID
+	turn := game.Action
 	var nextAction string
 	if turn == id1 {
 		nextAction = id2
@@ -35,22 +35,22 @@ func (g *GameService) runPickPhase(matchId string) {
 	for {
 		var pick dtos.RosterPickDto
 		var socket *websocket.Conn
-		var player *models.Player
-		roster := match.Roster
+		var player *match.Player
+		roster := game.Roster
 
-		conn1.WriteJSON(match)
-		conn2.WriteJSON(match)
+		conn1.WriteJSON(game)
+		conn2.WriteJSON(game)
 
-		if turn == id1 && canPlayerPick(roster, match.Player1.Gold) {
+		if turn == id1 && canPlayerPick(roster, game.Player1.Gold) {
 			socket = conn1
-			player = &match.Player1
-		} else if turn == id2 && canPlayerPick(roster, match.Player2.Gold) {
+			player = &game.Player1
+		} else if turn == id2 && canPlayerPick(roster, game.Player2.Gold) {
 			socket = conn2
-			player = &match.Player2
+			player = &game.Player2
 		} else {
 			fmt.Println("Pick phase is over")
-			match.Action = nextAction
-			g.matchRepo.SetMatch(matchId, match)
+			game.Action = nextAction
+			g.matchRepo.SetMatch(matchId, game)
 			go g.runDeployPhase(matchId)
 			break
 		}
@@ -87,7 +87,7 @@ func (g *GameService) runPickPhase(matchId string) {
 
 		player.Gold -= (row + 1)
 		unitId := uuid.New().String()
-		player.Units[unitId] = models.UnitFactory(unitType)
+		player.Units[unitId] = match.UnitFactory(unitType)
 
 		// end of turn
 		if turn == id1 {

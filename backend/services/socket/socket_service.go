@@ -1,4 +1,4 @@
-package services
+package socketservice
 
 import (
 	"sync"

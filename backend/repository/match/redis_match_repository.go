@@ -1,7 +1,7 @@
-package repository
+package matchrepository
 
 import (
-	"manual-chess/models"
+	"manual-chess/models/match"
 	"manual-chess/utils"
 
 	"github.com/redis/go-redis/v9"
@@ -15,10 +15,10 @@ func NewRedisMatchRepository(r *redis.Client) *RedisMatchRepository {
 	return &RedisMatchRepository{redisClient: r}
 }
 
-func (r *RedisMatchRepository) GetMatch(id string) (*models.Match, error) {
-	return utils.GetAndUnmarshal[models.Match](r.redisClient, id)
+func (r *RedisMatchRepository) GetMatch(id string) (*match.Match, error) {
+	return utils.GetAndUnmarshal[match.Match](r.redisClient, id)
 }
 
-func (r *RedisMatchRepository) SetMatch(id string, match *models.Match) error {
-	return utils.MarshalAndSet[models.Match](r.redisClient, id, match)
+func (r *RedisMatchRepository) SetMatch(id string, matchInstance *match.Match) error {
+	return utils.MarshalAndSet[match.Match](r.redisClient, id, matchInstance)
 }

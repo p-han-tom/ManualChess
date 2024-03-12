@@ -1,4 +1,4 @@
-package models
+package match
 
 type PlayerColour int
 
