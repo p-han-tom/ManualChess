@@ -52,7 +52,7 @@ func main() {
 	// Set up services
 	socketService := socketservice.NewSocketService()
 	gameService := gameservice.NewGameService(socketService, inMemMatchRepo)
-	matchMakingService := matchmakingservice.NewMatchMakingService(socketService, gameService, redisPlayerRepo, inMemMatchRepo, inMemMMQueue)
+	matchMakingService := matchmakingservice.NewMatchMakingService(gameService, redisPlayerRepo, inMemMatchRepo, inMemMMQueue)
 	authService := authservice.NewAuthService(redisClient)
 
 	// Set up controllers

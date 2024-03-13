@@ -2,6 +2,7 @@ package gameservice
 
 import (
 	"fmt"
+	dtos "manual-chess/dtos/socket"
 	"manual-chess/models/match"
 	"sync"
 )
@@ -34,26 +35,19 @@ func (g *GameService) processDeployForId(wg *sync.WaitGroup, game *match.Match, 
 	}
 	side := player.Colour
 	for {
-		var data map[string]interface{}
+		var data dtos.DeploymentDto
 		err := socket.ReadJSON(&data)
-		if err != nil {
+		for err != nil {
 			fmt.Println("Invalid input, try again")
 			err = socket.ReadJSON(&data)
 		}
 
-		unitId := data["unitId"].(string)
-		row := int(data["row"].(float64))
-		col := int(data["col"].(float64))
+		confirmPlacement := *data.ConfirmPlacement
+		unitId := data.UnitID
+		row := *data.Row
+		col := *data.Col
 
-		if isValidUnitDeployment(game.Board, side, row, col) {
-			if entry, ok := player.Units[unitId]; ok {
-				entry.Pos.Row = row
-				entry.Pos.Col = col
-				entry.IsDeployed = true
-			}
-		}
-
-		if data["confirmPlacement"].(bool) {
+		if confirmPlacement {
 			invalidDeployment := false
 			for _, unit := range player.Units {
 				if !unit.IsDeployed {
@@ -67,6 +61,15 @@ func (g *GameService) processDeployForId(wg *sync.WaitGroup, game *match.Match, 
 			}
 			break
 		}
+
+		if isValidUnitDeployment(game.Board, side, row, col) {
+			if entry, ok := player.Units[unitId]; ok {
+				entry.Pos.Row = row
+				entry.Pos.Col = col
+				entry.IsDeployed = true
+			}
+		}
+
 	}
 
 	wg.Done()
