@@ -62,7 +62,6 @@ func (g *GameService) runPickPhase(matchId string) {
 
 		// TODO: Add turn start verification for safer action processing
 
-		// Phase 1 roster pick
 		for {
 			err := socket.ReadJSON(&pick)
 			if err != nil {

@@ -2,8 +2,10 @@ package gameservice
 
 import (
 	"fmt"
+	dtos "manual-chess/dtos/socket"
 	"manual-chess/models/match"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/websocket"
 )
 
@@ -25,6 +27,7 @@ func (g *GameService) runGamePhase(matchId string) {
 	game.RollInitiative()
 
 	var round int = 1
+	validate := validator.New()
 
 	for {
 		for _, turn := range game.TurnOrder {
@@ -44,47 +47,90 @@ func (g *GameService) runGamePhase(matchId string) {
 				player = &game.Player2
 			}
 
+			var unit match.Unit = player.Units[turn.UnitID]
+
 			fmt.Println("It's " + turn.PlayerID + "'s turn")
 			fmt.Println("Unit's turn:")
 			fmt.Println(player.Units[turn.UnitID])
 
-			var data map[string]interface{}
-			err := socket.ReadJSON(&data)
-			for err != nil {
-				fmt.Println("Invalid input, try again")
-				err = socket.ReadJSON(&data)
-			}
+			var data dtos.GameTurnDto
 
-			// data schema?
-			// EndTurn bool
-			// MoveTo Position
-			// Action ActionChoice
-			// Targets []Position
+			for {
 
-			for !data["EndTurn"].(bool) {
+				socket.WriteJSON(player)
+
+				// input validation
+				err := socket.ReadJSON(&data)
+				for {
+					if err != nil {
+						continue
+					}
+					err = validate.Struct(data)
+					if err != nil {
+						continue
+					}
+					break
+				}
+
+				var endTurn bool = *data.EndTurn
+				var moveTo match.Position = data.MoveTo
+				var actionChoice int = *data.Action
+				var targets []match.Position = data.Targets
+
+				if endTurn {
+					break
+				}
+
 				if !moved {
-
-					moved = true
+					if pathExists(game.Board, unit.Pos, moveTo, unit.MoveRange) {
+						unit.Pos = moveTo
+						moved = true
+					} else {
+						fmt.Println("No path exists between (", unit.Pos.Row, unit.Pos.Col, ") and (", moveTo.Row, moveTo.Col, ")")
+					}
 				}
 
 				if !acted {
-
+					switch actionChoice {
+					case 0: // no ability input
+						break
+					case 1: // primary ability
+						match.PrimaryAbilityLookupTable[unit.Type](player.ID, turn.UnitID, game, targets)
+					case 2: // secondary ability
+						match.PrimaryAbilityLookupTable[unit.Type](player.ID, turn.UnitID, game, targets)
+					default:
+						fmt.Println("Invalid action choice")
+						// error out
+					}
 					acted = true
 				}
 
-				socket.ReadJSON(&data)
-				for err != nil {
-					fmt.Println("Invalid input, try again")
-					err = socket.ReadJSON(&data)
-				}
+				player.Units[turn.UnitID] = unit
 			}
 
 			// Check end of action status of units, tiles they occupy, etc
-
+			processEndOfTurn(game)
 		}
 		fmt.Printf("Round %d is over\n", round)
 	}
+}
 
+func processEndOfTurn(game *match.Match) {
+	for id, unit := range game.Player1.Units {
+		if unit.IsAlive && unit.HP <= 0 {
+			game.Board[unit.Pos.Row][unit.Pos.Col].OccupantId = ""
+			unit.IsAlive = false
+			game.Player1.Units[id] = unit
+		}
+	}
+
+	for id, unit := range game.Player2.Units {
+		if unit.IsAlive && unit.HP <= 0 {
+			game.Board[unit.Pos.Row][unit.Pos.Col].OccupantId = ""
+			unit.IsAlive = false
+			game.Player2.Units[id] = unit
+		}
+	}
 }
 
 func pathExists(board [][]match.Tile, start match.Position, end match.Position, moveRange int) bool {
@@ -101,14 +147,13 @@ func pathExists(board [][]match.Tile, start match.Position, end match.Position, 
 
 	for len(queue) > 0 {
 		size := len(queue)
-		if moveRange == 0 {
+		if moveRange < 0 {
 			return false
 		}
 
 		for i := 0; i < size; i++ {
-			current := queue[0]
-			queue = queue[1:]
-			if start == end {
+			current := queue[i]
+			if current == end {
 				return true
 			}
 
@@ -120,6 +165,7 @@ func pathExists(board [][]match.Tile, start match.Position, end match.Position, 
 				}
 			}
 		}
+		queue = queue[size:]
 		moveRange--
 	}
 

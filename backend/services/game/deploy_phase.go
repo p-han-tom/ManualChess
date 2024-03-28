@@ -5,6 +5,8 @@ import (
 	dtos "manual-chess/dtos/socket"
 	"manual-chess/models/match"
 	"sync"
+
+	"github.com/go-playground/validator/v10"
 )
 
 func (g *GameService) runDeployPhase(matchId string) {
@@ -16,6 +18,8 @@ func (g *GameService) runDeployPhase(matchId string) {
 	}
 
 	id1, id2 := match.Player1.ID, match.Player2.ID
+
+	fmt.Println("Beginning deploy phase")
 
 	wg.Add(2)
 	go g.processDeployForId(&wg, match, id1)
@@ -33,13 +37,22 @@ func (g *GameService) processDeployForId(wg *sync.WaitGroup, game *match.Match, 
 	} else {
 		player = &game.Player2
 	}
+
+	validate := validator.New()
 	side := player.Colour
 	for {
+		socket.WriteJSON(player)
+
 		var data dtos.DeploymentDto
 		err := socket.ReadJSON(&data)
 		for err != nil {
 			fmt.Println("Invalid input, try again")
 			err = socket.ReadJSON(&data)
+		}
+
+		if err = validate.Struct(data); err != nil {
+			fmt.Println(err)
+			continue
 		}
 
 		confirmPlacement := *data.ConfirmPlacement
@@ -67,6 +80,8 @@ func (g *GameService) processDeployForId(wg *sync.WaitGroup, game *match.Match, 
 				entry.Pos.Row = row
 				entry.Pos.Col = col
 				entry.IsDeployed = true
+				game.Board[row][col].OccupantId = unitId
+				player.Units[unitId] = entry
 			}
 		}
 
